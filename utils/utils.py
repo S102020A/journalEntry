@@ -1,28 +1,19 @@
 import pandas as pd
 import snowflake.connector
 import streamlit as st
+import sqlite3
 
 
 def clean_data(raw: pd.DataFrame):
     df = raw.copy()
+
+    # make column names spaces to _ and uppercase
     df.columns = df.columns.str.replace(" ", "_").str.upper()
 
-    def nan_to_none(value):
-        if pd.isna(value):
-            return None
-        return value
+    # convert nans to none
+    df = df.map(lambda value: None if pd.isna(value) else value)
 
-    df = df.applymap(nan_to_none)
-
-    # create a simple unqiue id
-    df["ROW_ID"] = (
-        df["ENTRY_ID"].astype(str)
-        + "_"
-        + df["ENTRY_DETAIL_ID"].astype(str)
-        + "_"
-        + df["SEQNO"].astype(str)
-    )
-
+    # create a single RAD_DATA column to encapuslate an optional array of rad data
     cols_to_scope = []
 
     for col_name in df.columns:
@@ -49,7 +40,8 @@ def clean_data(raw: pd.DataFrame):
 
         row["RAD_DATA"] = rad_data
         for key_to_remove in keys_to_remove:
-            if key_to_remove in row:  # Check if the key still exists before deleting
+            # Check if the key still exists before deleting
+            if key_to_remove in row:
                 del row[key_to_remove]
 
     clean = pd.DataFrame(list_of_dicts)
@@ -61,15 +53,17 @@ def insert_data(data_to_insert: list[dict]):
     """Inserts data into the specified Snowflake table."""
     try:
         table_name = "MANUAL_JOURNAL_ENTRY_TRANSACTION"
-        conn = snowflake.connector.connect(
-            user=st.secrets["snowflake"]["user"],
-            account=st.secrets["snowflake"]["account"],
-            authenticator=st.secrets["snowflake"]["authenticator"],
-            warehouse=st.secrets["snowflake"]["warehouse"],
-            database=st.secrets["snowflake"]["database"],
-            schema=st.secrets["snowflake"]["schema"],
-            role=st.secrets["snowflake"]["role"],
-        )
+        # conn = snowflake.connector.connect(
+        #     user=st.secrets["snowflake"]["user"],
+        #     account=st.secrets["snowflake"]["account"],
+        #     authenticator=st.secrets["snowflake"]["authenticator"],
+        #     warehouse=st.secrets["snowflake"]["warehouse"],
+        #     database=st.secrets["snowflake"]["database"],
+        #     schema=st.secrets["snowflake"]["schema"],
+        #     role=st.secrets["snowflake"]["role"],
+        # )
+        conn = sqlite3.connect("test_data/main.db")
+
         with conn.cursor() as cur:
             columns = ", ".join(data_to_insert.keys())
             placeholders = ", ".join(["%s"] * len(data_to_insert))
