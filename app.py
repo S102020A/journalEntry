@@ -38,8 +38,9 @@ if uploaded_file is not None:
                 st.success("Data ingestion started!")
 
                 try:
-                    clean_data_rows = clean_data.to_dict(orient="records")
-                    insert_data(clean_data_rows)
+                    # drop all rows from the minimum date from supplied rows
+                    drop_data_from_minimum_date_created(clean_data)
+                    insert_data(clean_data.to_dict(orient="records"))
                 except Exception as e:
                     st.subheader("Data Ingestion Error")
                     st.error(f"{e}")
