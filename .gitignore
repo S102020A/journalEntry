@@ -1,6 +1,5 @@
 # secrets
 secrets.toml
-git.secrets.toml
 
 # test data
 test_data/

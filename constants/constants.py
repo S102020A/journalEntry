@@ -1,0 +1,40 @@
+from datetime import date
+
+MANUAL_BUDGET_COLS = {
+    "COMPANY_ID": str,
+    "BUDGET_ID": str,
+    "BUSINESS_UNIT_ID": str,
+    "ACCOUNT_NO": str,
+    "AMOUNT": float,
+    "ACCOUNTING_DATE": date,
+    "DATA_TYPE": str,
+}
+
+MANUAL_JOURNAL_ENTRY_TRANSACTION_COLS: dict[str, str] = {
+    "COMPANY_ID": str,
+    "ENTRY_ID": str,
+    "BUSINESS_UNIT_ID": str,
+    "ACCOUNT_NO": str,
+    "AMOUNT": float,
+    "ACCOUNTING_DATE": date,
+    "DATA_TYPE": str,
+    "REMARKS": str,
+    "COMMENTS": str,
+    "FOLLOW_UP_STATUS": str,
+    "ENTRY_TYPE": str,
+    "SOURCE_SYSTEM": str,
+    "REVERSED": str,
+    "APPROVAL": str,
+    "REVERSING_DATE": date,
+    "DATE_CREATED": date,
+    "USER_CREATED": str,
+    "DATE_CLOSED": date,
+    "USER_CLOSED": str,
+    "DATE_POSTED": date,
+    "USER_POSTED": str,
+    "COMPANY": str,
+    "BUSINESS_UNIT": str,
+    "ACCOUNT": str,
+    "ACCOUNT_TYPE": str,
+    "PERIOD_ID": str,
+}

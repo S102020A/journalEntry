@@ -1,15 +1,89 @@
+import toml
+import json
+import psycopg2
 import pandas as pd
-import snowflake.connector
 import streamlit as st
-import sqlite3
-from datetime import date
+from constants.constants import (
+    MANUAL_JOURNAL_ENTRY_TRANSACTION_COLS,
+    MANUAL_BUDGET_COLS,
+)
+
+
+def get_database_credentials(toml_file_path):
+    """Reads database credentials from a TOML file.
+
+    Args:
+        toml_file_path (str): The path to the TOML file.
+
+    Returns:
+        dict: A dictionary containing the database credentials, or None if the
+              'postgres' section is not found.
+    """
+    try:
+        with open(toml_file_path, "r") as f:
+            config = toml.load(f)
+            if "postgres" in config:
+                return config["postgres"]
+            else:
+                print("Error: 'postgres' section not found in the TOML file.")
+                return None
+    except FileNotFoundError:
+        raise Exception(f"Error: File not found at {toml_file_path}")
+    except toml.TomlDecodeError as e:
+        raise Exception("Error decoding TOML file: {e}")
+
+
+def convert_date_cols(schema: dict, df: pd.DataFrame) -> pd.DataFrame:
+    for col, data_type in schema.items():
+        if data_type == "date" and col in df.columns:
+            try:
+                df[col] = pd.to_datetime(df[col]).dt.date
+            except Exception as e:
+                print(f"Error converting column '{col}' to datetime: {e}")
+                raise Exception()
+    return df
+
+
+def validate_column_names(column_names: list[str], schema: dict) -> dict:
+    schema_column_names = list(schema.keys())
+    missing_from_df = [col for col in schema_column_names if col not in column_names]
+
+    if missing_from_df:
+        error_message = (
+            f"Column validation failed for table: {st.session_state["table_name"]}.\n"
+        )
+        if missing_from_df:
+            error_message += f"Missing columns: {"\n".join(missing_from_df)}\n"
+        raise Exception(error_message)
 
 
 def clean_data(raw: pd.DataFrame):
     df = raw.copy()
+    table_name = st.session_state["table_name"]
+
+    # check if all columns are provided
+    if table_name == "MANUAL_JOURNAL_ENTRY_TRANSACTION":
+        schema = MANUAL_JOURNAL_ENTRY_TRANSACTION_COLS
+    elif table_name == "MANUAL_BUDGET":
+        schema = MANUAL_BUDGET_COLS
+    else:
+        st.error(f"Unknown table name: {table_name}.  Cannot validate columns.")
+        st.stop()
 
     # make column names spaces to _ and uppercase
-    df.columns = df.columns.str.replace(" ", "_").str.replace("-", "_").str.upper()
+    df.columns = (
+        df.columns.str.strip()
+        .str.replace(" ", "_")
+        .str.replace("-", "_")
+        .str.replace(".", "")
+        .str.upper()
+    )
+
+    # validate columns
+    validate_column_names(column_names=df.columns.to_list(), schema=schema)
+
+    # convert date columns to pd.date
+    df = convert_date_cols(df=df, schema=schema)
 
     # convert nans to none
     df = df.map(lambda value: None if pd.isna(value) else value)
@@ -20,6 +94,7 @@ def clean_data(raw: pd.DataFrame):
         .astype(str)
         .map(lambda value: pd.to_numeric(str(value).replace(",", "")))
         .map("{:.2f}".format)
+        .astype(float)
     )
 
     # create a single RAD_DATA column to encapuslate an optional array of rad data
@@ -47,12 +122,14 @@ def clean_data(raw: pd.DataFrame):
                     rad_slice = {"RAD_TYPE_ID": rad_type_id, "RAD_ID": rad_id}
                     rad_data.append(rad_slice)
 
-        # if list is empty make the value none
-        rad_data = rad_data if len(rad_data) != 0 else None
-        row["RAD_DATA"] = str(rad_data)
+        # encode to json object or none if arr is empty
+        if len(rad_data) != 0:
+            row["RAD_DATA"] = json.dumps(rad_data, allow_nan=False)
+        else:
+            row["RAD_DATA"] = None
 
+        # finally remove the RAD columns before insertion
         for key_to_remove in keys_to_remove:
-            # Check if the key still exists before deleting
             if key_to_remove in row:
                 del row[key_to_remove]
 
@@ -62,94 +139,67 @@ def clean_data(raw: pd.DataFrame):
 
 
 def drop_data_from_minimum_date_created(df: pd.DataFrame) -> None:
-    """
-    Deletes all rows from the MANUAL_JOURNAL_ENTRY_TRANSACTION table
-    where the DATE_CREATED is greater than or equal to the provided date.
-
-    Args:
-        min_date_created: The minimum date (inclusive) from which to drop data.
-    """
     clean_data_copy = df.copy()
-    clean_data_copy["DATE_CREATED"] = pd.to_datetime(
-        clean_data_copy["DATE_CREATED"], format="%m/%d/%Y"
-    ).dt.date
-    min_date = clean_data_copy["DATE_CREATED"].min()
-    min_date_str = min_date.strftime("%m/%d/%Y")
-    conn = sqlite3.connect("test_data/main.db")
+    min_date = clean_data_copy["ACCOUNTING_DATE"].min()
+    credentials = get_database_credentials(".streamlit/secrets.toml")
+    conn = psycopg2.connect(**credentials)
     cursor = conn.cursor()
 
     try:
-        sql = "DELETE FROM MANUAL_JOURNAL_ENTRY_TRANSACTION WHERE DATE_CREATED >= ?"
-        cursor.execute(sql, (min_date_str,))
-        rows_deleted = conn.total_changes
+        sql = f'DELETE FROM FINANCE."{st.session_state["table_name"]}" WHERE "ACCOUNTING_DATE" >= %s'
+        cursor.execute(sql, (min_date,))
+        rows_deleted = cursor.rowcount
         conn.commit()
         st.success(
-            f"{rows_deleted} Deleted rows with DATE_CREATED on or after {min_date_str}."
+            f"{rows_deleted} Deleted rows with DATE_CREATED on or after {min_date}."
         )
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
+    except psycopg2.Error as e:
         conn.rollback()
+        raise Exception(f"While dropping data from minimum date an error occured: {e}")
     finally:
         cursor.close()
         conn.close()
     return rows_deleted
 
 
-def insert_data(data_to_insert: list[dict]) -> int:
+def insert_data(data_to_insert: list[dict]):
     """Inserts a single row of data into the SQLite table."""
-    conn = None  # Initialize conn outside the try block
-    cursor = None  # Initialize cursor outside the try block
-    rows_inserted = 0
-
+    rows_inserted = 1
     success_placeholder = st.empty()
 
     try:
-        table_name = "MANUAL_JOURNAL_ENTRY_TRANSACTION"
-        conn = sqlite3.connect("test_data/main.db")
+        credentials = get_database_credentials(".streamlit/secrets.toml")
+        conn = psycopg2.connect(**credentials)
+
         cursor = conn.cursor()
-
-        sql = f"""
-            SELECT name
-            FROM pragma_table_info('MANUAL_JOURNAL_ENTRY_TRANSACTION')
-            WHERE pk = 0 AND dflt_value IS NULL;
-        """
-        cursor.execute(sql)
-        column_names = [col[0] for col in cursor.fetchall()]
-
-        cleaned_data = []
         for row in data_to_insert:
-            cleaned_row = {}
-            for col_name in column_names:
-                if col_name in row:
-                    cleaned_row[col_name] = row[col_name]
-            cleaned_data.append(cleaned_row)
-
-        for row in cleaned_data:
-            columns = ", ".join(row.keys())
-            placeholders = ", ".join(["?"] * len(row))
-            query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+            columns = ", ".join([f'"{col}"' for col in row.keys()])
+            placeholders = ", ".join(["%s"] * len(row))
+            query = f'INSERT INTO FINANCE."{st.session_state["table_name"]}" ({columns}) VALUES ({placeholders})'
             values = tuple(row.values())
 
             try:
                 cursor.execute(query, values)
                 success_placeholder.success(
-                    f"Successfully inserted row: {', '.join([f'{k}: {v}' for k, v in row.items()])}"
+                    f"Successfully inserted row {rows_inserted}"
                 )
+                ++rows_inserted
             except Exception as e:
                 raise e
 
         success_placeholder.empty()
-        rows_inserted = conn.total_changes
+        rows_inserted = cursor.rowcount
         conn.commit()
-    except sqlite3.Error as e:
-        st.error(f"Error inserting data into {table_name}: {e}")
+    except psycopg2.Error as e:
         if conn:
             conn.rollback()
+        raise Exception(
+            f"Error inserting data into {st.session_state["table_name"]}: {e}"
+        )
     except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+        raise Exception(f"An unexpected error occurred: {e}")
     finally:
         if cursor:
             cursor.close()
         if conn:
             conn.close()
-    return rows_inserted

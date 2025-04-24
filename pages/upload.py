@@ -3,10 +3,20 @@ import streamlit as st
 from utils.utils import *
 
 st.title("Upload")
+
+option = st.selectbox(
+    label="Select an upload option",
+    options=["MANUAL_JOURNAL_ENTRY_TRANSACTION", "MANUAL_BUDGET"],
+    key="option_selectbox",
+)
+
+st.session_state["table_name"] = option
+
 uploaded_file = st.file_uploader(
-    "Upload a CSV from the Query Report MANUAL_JOURNAL_TRANSACTION_ENTRY",
+    f"Upload a CSV from the Query Report {option}",
     type="csv",
     accept_multiple_files=False,
+    key="file_uploader",
 )
 
 if uploaded_file is not None:
@@ -20,7 +30,7 @@ if uploaded_file is not None:
 
     try:
         st.subheader("Clean Data")
-        clean_data = clean_data(raw)
+        clean_data = clean_data(raw=raw)
         st.dataframe(clean_data)
     except Exception as e:
         st.subheader("Data Cleaning Error")
