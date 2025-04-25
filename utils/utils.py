@@ -76,7 +76,7 @@ def clean_data(raw: pd.DataFrame):
         .str.replace(" ", "_")
         .str.replace("-", "_")
         .str.replace(".", "")
-        .str.upper()
+        .str.lower()
     )
 
     # validate columns
@@ -89,8 +89,8 @@ def clean_data(raw: pd.DataFrame):
     df = df.map(lambda value: None if pd.isna(value) else value)
 
     # map amount values to a decimal numeric
-    df["AMOUNT"] = (
-        df["AMOUNT"]
+    df["amount"] = (
+        df["amount"]
         .astype(str)
         .map(lambda value: pd.to_numeric(str(value).replace(",", "")))
         .map("{:.2f}".format)
@@ -111,22 +111,22 @@ def clean_data(raw: pd.DataFrame):
         rad_data = []
 
         for col_name in row.keys():
-            if "RAD" in col_name:
+            if "rad" in col_name:
                 keys_to_remove.append(col_name)
                 is_rad_id_value = row[col_name]
 
                 # check if RAD value exists
                 if is_rad_id_value:
-                    rad_type_id = col_name.replace("_RAD", "")
+                    rad_type_id = col_name.replace("_rad", "")
                     rad_id = row[col_name]
-                    rad_slice = {"RAD_TYPE_ID": rad_type_id, "RAD_ID": rad_id}
+                    rad_slice = {"rad_type_id": rad_type_id, "rad_id": rad_id}
                     rad_data.append(rad_slice)
 
         # encode to json object or none if arr is empty
         if len(rad_data) != 0:
-            row["RAD_DATA"] = json.dumps(rad_data, allow_nan=False)
+            row["rad_data"] = json.dumps(rad_data, allow_nan=False)
         else:
-            row["RAD_DATA"] = None
+            row["rad_data"] = None
 
         # finally remove the RAD columns before insertion
         for key_to_remove in keys_to_remove:
@@ -138,33 +138,32 @@ def clean_data(raw: pd.DataFrame):
     return clean
 
 
-def drop_data_from_minimum_date_created(df: pd.DataFrame) -> None:
+def drop_data_from_minimum_date_created(df: pd.DataFrame) -> str:
     clean_data_copy = df.copy()
-    min_date = clean_data_copy["ACCOUNTING_DATE"].min()
+    min_date = clean_data_copy["accounting_date"].min()
     credentials = get_database_credentials(".streamlit/secrets.toml")
     conn = psycopg2.connect(**credentials)
     cursor = conn.cursor()
 
     try:
-        sql = f'DELETE FROM FINANCE."{st.session_state["table_name"]}" WHERE "ACCOUNTING_DATE" >= %s'
+        sql = f'delete from finance.{st.session_state["table_name"]} where accounting_date >= %s'
         cursor.execute(sql, (min_date,))
-        rows_deleted = cursor.rowcount
+        rows_dropped = cursor.rowcount
         conn.commit()
-        st.success(
-            f"{rows_deleted} Deleted rows with DATE_CREATED on or after {min_date}."
-        )
+
+        return_message = f"💧 {rows_dropped} rows dropped from column accounting_date on or after {min_date}."
+        return return_message
     except psycopg2.Error as e:
         conn.rollback()
         raise Exception(f"While dropping data from minimum date an error occured: {e}")
     finally:
         cursor.close()
         conn.close()
-    return rows_deleted
 
 
-def insert_data(data_to_insert: list[dict]):
+def insert_data(data_to_insert: list[dict]) -> str:
     """Inserts a single row of data into the SQLite table."""
-    rows_inserted = 1
+    rows_inserted = 0
     success_placeholder = st.empty()
 
     try:
@@ -175,7 +174,7 @@ def insert_data(data_to_insert: list[dict]):
         for row in data_to_insert:
             columns = ", ".join([f'"{col}"' for col in row.keys()])
             placeholders = ", ".join(["%s"] * len(row))
-            query = f'INSERT INTO FINANCE."{st.session_state["table_name"]}" ({columns}) VALUES ({placeholders})'
+            query = f'INSERT INTO FINANCE.{st.session_state["table_name"]} ({columns}) VALUES ({placeholders})'
             values = tuple(row.values())
 
             try:
@@ -183,18 +182,52 @@ def insert_data(data_to_insert: list[dict]):
                 success_placeholder.success(
                     f"Successfully inserted row {rows_inserted}"
                 )
-                ++rows_inserted
+                rows_inserted += 1
             except Exception as e:
                 raise e
 
         success_placeholder.empty()
-        rows_inserted = cursor.rowcount
         conn.commit()
+
+        return_message = (
+            f"📥 {rows_inserted} rows/s inserted into {st.session_state["table_name"]}"
+        )
+        return return_message
+
     except psycopg2.Error as e:
         if conn:
             conn.rollback()
         raise Exception(
             f"Error inserting data into {st.session_state["table_name"]}: {e}"
+        )
+    except Exception as e:
+        raise Exception(f"An unexpected error occurred: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def show_head_from_db():
+    try:
+        credentials = get_database_credentials(".streamlit/secrets.toml")
+        conn = psycopg2.connect(**credentials)
+        cursor = conn.cursor()
+        query = f'select * from finance.{st.session_state["table_name"]} order by id limit 5;'
+        cursor.execute(query)
+
+        # cast the results into a dataframe
+        results = cursor.fetchall()
+        column_names = [desc[0] for desc in cursor.description]
+        df = pd.DataFrame(results, columns=column_names)
+        conn.commit()
+        return df
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
+        raise Exception(
+            f"Error fetching top data from {st.session_state["table_name"]}: {e}"
         )
     except Exception as e:
         raise Exception(f"An unexpected error occurred: {e}")
