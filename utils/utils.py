@@ -1,4 +1,5 @@
 import toml
+from datetime import date
 import json
 import psycopg2
 import pandas as pd
@@ -10,15 +11,6 @@ from constants.constants import (
 
 
 def get_database_credentials(toml_file_path):
-    """Reads database credentials from a TOML file.
-
-    Args:
-        toml_file_path (str): The path to the TOML file.
-
-    Returns:
-        dict: A dictionary containing the database credentials, or None if the
-              'postgres' section is not found.
-    """
     try:
         with open(toml_file_path, "r") as f:
             config = toml.load(f)
@@ -35,9 +27,9 @@ def get_database_credentials(toml_file_path):
 
 def convert_date_cols(schema: dict, df: pd.DataFrame) -> pd.DataFrame:
     for col, data_type in schema.items():
-        if data_type == "date" and col in df.columns:
+        if data_type == "date":
             try:
-                df[col] = pd.to_datetime(df[col]).dt.date
+                df[col] = pd.to_datetime(df[col], format="%m/%d/%Y").dt.date
             except Exception as e:
                 print(f"Error converting column '{col}' to datetime: {e}")
                 raise Exception()

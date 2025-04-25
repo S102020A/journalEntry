@@ -2,115 +2,98 @@ import pandas as pd
 import streamlit as st
 from utils.utils import *
 
+# Page title
 st.title("Upload")
 
+# Select upload option
 option = st.selectbox(
     label="Select an upload option",
     options=["MANUAL_JOURNAL_ENTRY_TRANSACTION", "MANUAL_BUDGET"],
     key="option_selectbox",
+    index=1,
 )
 
+# Store selected option in session state
 st.session_state["table_name"] = option
 
+# Upload file
 uploaded_file = st.file_uploader(
-    f"Upload a CSV from the Query Report {option}",
+    label="Upload a CSV",
     type="csv",
     accept_multiple_files=False,
     key="file_uploader",
 )
 
+# If a file is uploaded
 if uploaded_file is not None:
-    raw = pd.read_csv(uploaded_file, dtype=str)
-    st.markdown(
-        "<h2 style='color: Bisque;'>Raw Uploaded Data</h2>", unsafe_allow_html=True
-    )
-    st.dataframe(raw.head())
-
-    st.markdown(
-        "<h2 style='color: Bisque;'>Raw Data Types</h2>", unsafe_allow_html=True
-    )
-    dtypes_df = pd.DataFrame(raw.dtypes, columns=["Data Type"])
-    st.dataframe(dtypes_df, height=200)
-
     try:
-        st.markdown(
-            "<h2 style='color: DarkSalmon;'>Cleaned Data</h2>", unsafe_allow_html=True
-        )
-        clean_data = clean_data(raw=raw)
-        st.dataframe(clean_data)
+        raw = pd.read_csv(uploaded_file, dtype=str, delimiter=",")
 
         st.markdown(
-            "<h2 style='color: DarkSalmon;'>Cleaned Data Types</h2>",
-            unsafe_allow_html=True,
+            "<h2 style='color: Bisque;'>Raw Uploaded Data</h2>", unsafe_allow_html=True
         )
-        dtypes_df = pd.DataFrame(clean_data.dtypes, columns=["Data Type"])
-        st.dataframe(dtypes_df, height=200)
+        st.dataframe(raw.head())
+
+        st.markdown(
+            "<h2 style='color: Bisque;'>Raw Data Types</h2>", unsafe_allow_html=True
+        )
+        st.dataframe(pd.DataFrame(raw.dtypes, columns=["Data Type"]), height=200)
+
+        # Try cleaning the data
+        try:
+            st.markdown(
+                "<h2 style='color: DarkSalmon;'>Cleaned Data</h2>",
+                unsafe_allow_html=True,
+            )
+            clean_data_df = clean_data(raw=raw)
+            st.dataframe(clean_data_df)
+
+            st.markdown(
+                "<h2 style='color: DarkSalmon;'>Cleaned Data Types</h2>",
+                unsafe_allow_html=True,
+            )
+            st.dataframe(
+                pd.DataFrame(clean_data_df.dtypes, columns=["Data Type"]), height=200
+            )
+
+            # Ingest button
+            if st.button("Ingest Data 🚀"):
+                st.session_state["show_ingestion_confirm"] = True
+
+            # Confirmation UI
+            if st.session_state.get("show_ingestion_confirm", False):
+                st.warning("Are you sure you want to ingest the data?")
+
+                if st.button("✅ Yes, proceed", use_container_width=True):
+                    st.info("🏃 Data ingestion started!")
+
+                    try:
+                        message = drop_data_from_minimum_date_created(clean_data_df)
+                        st.success(message)
+
+                        message = insert_data(clean_data_df.to_dict(orient="records"))
+                        st.success(message)
+
+                        st.markdown(
+                            "<h2 style='color: IndianRed;'>Database Data Head</h2>",
+                            unsafe_allow_html=True,
+                        )
+                        st.dataframe(show_head_from_db())
+
+                        # Clear flag after success
+                        st.session_state["show_ingestion_confirm"] = False
+
+                    except Exception as e:
+                        st.subheader("Data Ingestion Error")
+                        st.error(f"{e}")
+
+                if st.button("❌ Cancel", use_container_width=True):
+                    st.session_state["show_ingestion_confirm"] = False
+
+        except Exception as e:
+            st.subheader("Data Cleaning Error")
+            st.error(f"{e}")
+
     except Exception as e:
-        st.subheader("Data Cleaning Error")
+        st.subheader("File Read Error")
         st.error(f"{e}")
-
-    # Initialize session state if it doesn't exist
-    if "show_confirm" not in st.session_state:
-        st.session_state.show_confirm = False
-    if "proceed_ingestion" not in st.session_state:
-        st.session_state.proceed_ingestion = False
-
-    if st.button("Ingest Data", icon="🚀"):
-        st.session_state.show_confirm = True
-
-    if st.session_state.get("show_confirm", False):
-        st.warning("Are you sure you want to ingest the data?")
-        proceed, cancel = st.columns(2)
-        with proceed:
-            if st.button("✅ Yes, proceed"):
-                st.info("🏃 Data ingestion started!")
-                st.session_state.proceed_ingestion = True
-                st.session_state.show_confirm = False
-                st.rerun()
-        with cancel:
-            if st.button("❌ Cancel"):
-                st.info("Action cancelled.")
-                st.session_state.show_confirm = False
-                st.session_state.proceed_ingestion = False
-                st.rerun()
-
-    # Data ingestion logic - This should ONLY run if proceed_ingestion is True
-    if st.session_state.get("proceed_ingestion", False):
-        with st.container():
-            try:
-                # Call the data processing functions
-                message = drop_data_from_minimum_date_created(clean_data)
-                st.success(message)
-
-                message = insert_data(clean_data.to_dict(orient="records"))
-                st.success(message)
-
-                # Show data from the database
-                st.markdown(
-                    "<h2 style='color: IndianRed;'>Database Data Head</h2>",
-                    unsafe_allow_html=True,
-                )
-                st.dataframe(show_head_from_db())
-            except Exception as e:
-                st.subheader("Data Ingestion Error")
-                st.error(f"{e}")
-
-
-def clear_session_and_cache():
-    # Clear session state
-    st.session_state.clear()
-    # Clear cache
-    st.cache_resource.clear()
-    st.cache_data.clear()
-    st.rerun()  # Rerun the app to reflect the cleared state
-
-
-# Example usage:
-if st.button("Clear Session and Cache", icon="🧹", type="primary"):
-    clear_session_and_cache()
-
-
-@st.cache_data
-def my_cached_data(count):
-    print("Running my_cached_data")  # check when the function runs
-    return count * 2
