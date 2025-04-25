@@ -1,31 +1,52 @@
 import pandas as pd
 import streamlit as st
-from utils.utils import *
+from pages.upload.utils import *
 
-# Page title
+
+def hard_del_session():
+    for key in st.session_state.keys():
+        del st.session_state[key]
+
+
 st.title("Upload")
 
-# Select upload option
 option = st.selectbox(
     label="Select an upload option",
     options=["MANUAL_JOURNAL_ENTRY_TRANSACTION", "MANUAL_BUDGET"],
     key="option_selectbox",
     index=1,
+    on_change=hard_del_session,
 )
-
-# Store selected option in session state
 st.session_state["table_name"] = option
 
-# Upload file
 uploaded_file = st.file_uploader(
-    label="Upload a CSV",
+    label=f"Upload a csv",
     type="csv",
     accept_multiple_files=False,
     key="file_uploader",
 )
 
-# If a file is uploaded
 if uploaded_file is not None:
+    if st.button("Clean Data", key="clean_data_btn"):
+        st.session_state["show_clean_confirm"] = True
+
+    if st.session_state.get("show_clean_confirm", False):
+        yes, no = st.columns(2)
+        st.session_state["show_clean_confirm"] = True
+
+        if st.session_state.get("show_clean_confirm", False):
+            with yes:
+                if st.button("✅ Yes, proceed"):
+                    st.session_state["is_clean"] = True
+                    st.session_state["show_clean_confirm"] = False
+                    st.rerun()
+            with no:
+                if st.button("❌ Cancel"):
+                    st.session_state["is_clean"] = False
+                    st.session_state["show_clean_confirm"] = False
+                    st.rerun()
+
+if st.session_state.get("is_clean", False):
     try:
         raw = pd.read_csv(uploaded_file, dtype=str, delimiter=",")
 

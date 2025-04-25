@@ -1,5 +1,4 @@
-import toml
-from datetime import date
+from utils.db_manager import get_connection
 import json
 import psycopg2
 import pandas as pd
@@ -8,21 +7,6 @@ from constants.constants import (
     MANUAL_JOURNAL_ENTRY_TRANSACTION_COLS,
     MANUAL_BUDGET_COLS,
 )
-
-
-def get_database_credentials(toml_file_path):
-    try:
-        with open(toml_file_path, "r") as f:
-            config = toml.load(f)
-            if "postgres" in config:
-                return config["postgres"]
-            else:
-                print("Error: 'postgres' section not found in the TOML file.")
-                return None
-    except FileNotFoundError:
-        raise Exception(f"Error: File not found at {toml_file_path}")
-    except toml.TomlDecodeError as e:
-        raise Exception("Error decoding TOML file: {e}")
 
 
 def convert_date_cols(schema: dict, df: pd.DataFrame) -> pd.DataFrame:
@@ -133,8 +117,7 @@ def clean_data(raw: pd.DataFrame):
 def drop_data_from_minimum_date_created(df: pd.DataFrame) -> str:
     clean_data_copy = df.copy()
     min_date = clean_data_copy["accounting_date"].min()
-    credentials = get_database_credentials(".streamlit/secrets.toml")
-    conn = psycopg2.connect(**credentials)
+    conn = get_connection()
     cursor = conn.cursor()
 
     try:
@@ -159,8 +142,7 @@ def insert_data(data_to_insert: list[dict]) -> str:
     success_placeholder = st.empty()
 
     try:
-        credentials = get_database_credentials(".streamlit/secrets.toml")
-        conn = psycopg2.connect(**credentials)
+        conn = get_connection()
 
         cursor = conn.cursor()
         for row in data_to_insert:
@@ -203,8 +185,7 @@ def insert_data(data_to_insert: list[dict]) -> str:
 
 def show_head_from_db():
     try:
-        credentials = get_database_credentials(".streamlit/secrets.toml")
-        conn = psycopg2.connect(**credentials)
+        conn = get_connection()
         cursor = conn.cursor()
         query = f'select * from finance.{st.session_state["table_name"]} order by id limit 5;'
         cursor.execute(query)
