@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+from utils.ag_grid import *
 from utils.db_manager import get_connection
 from pages.grouping.utils import *
 
@@ -35,42 +36,74 @@ with create:
         group_name = st.text_input("Name of Grouping")
         created_by = st.text_input("Created By")
         dimension = st.selectbox(
-            "Select dimension", options=["account", "business_unit", "rad"]
+            "Select dimension", options=["account", "business_unit"]
         )
         uploaded_json_file = st.file_uploader(label="Json uploader", type="json")
         submitted = st.form_submit_button("Submit")
 
-        if submitted:
-            if not group_name:
-                st.error("Please enter a name for the grouping.")
-            elif not dimension:
-                st.error("Please select a dimension.")
-            elif uploaded_json_file is None:
-                st.error("Please upload a JSON file.")
-            elif not created_by:
-                st.error("Please enter who you are.")
-            else:
-                parsed_json = json.load(uploaded_json_file)
-                json_str = json.dumps(parsed_json)
-                cursor.execute(
-                    """
+        if submitted and validate_form(
+            group_name, created_by, dimension, uploaded_json_file
+        ):
+            parsed_json = json.load(uploaded_json_file)
+            json_str = json.dumps(parsed_json)
+            cursor.execute(
+                """
                     INSERT INTO finance.grouping (name, dimension, grouping, created_by) VALUES (%s, %s, %s, %s)
                 """,
-                    (group_name, dimension, json_str, created_by),
-                )
-                conn.commit()
+                (group_name, dimension, json_str, created_by),
+            )
+            conn.commit()
 
-                st.success("Grouping successfully inserted into the database!")
+            st.success("Grouping successfully inserted into the database!")
 
 with read:
-    cursor.execute("SELECT * FROM finance.grouping ORDER BY created_at DESC;")
+    query = """
+            SELECT id, name, grouping::TEXT, dimension, created_by
+            FROM finance.grouping
+            ORDER BY created_at DESC;
+        """
+    cursor.execute(query)
     data = cursor.fetchall()
     columns = [desc[0] for desc in cursor.description]
     raw_data = pd.DataFrame(data, columns=columns)
-    st.dataframe(raw_data, use_container_width=True)
+    grid_response = get_read_ag_grid(raw_data)
 
 with update:
-    pass
+    query = """
+            SELECT id, name, grouping::TEXT, dimension, created_by
+            FROM finance.grouping
+            ORDER BY created_at DESC;
+        """
+    cursor.execute(query)
+    data = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+    raw_data = pd.DataFrame(data, columns=columns)
+    grid_response = get_update_ag_grid(raw_data)
 
 with delete:
-    pass
+    with st.container():
+        # Fetch data
+        query = """
+            SELECT id, name, grouping::TEXT, dimension, created_by
+            FROM finance.grouping
+            ORDER BY created_at DESC;
+        """
+        cursor.execute(query)
+        data = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        raw_data = pd.DataFrame(data, columns=columns)
+
+        # instantiate the grid
+        grid_response = get_delete_ag_grid(raw_data)
+
+        # Check if a row is selected
+        selected = grid_response["selected_rows"]
+        if selected is not None:
+            selected_id = int(selected.iloc[0]["ID"])
+            if st.button(f"Delete Selected ID {selected_id}"):
+                cursor.execute(
+                    "DELETE FROM finance.grouping WHERE id = %s;", (selected_id,)
+                )
+                conn.commit()
+                st.success(f"Deleted row with ID {selected_id}")
+                st.rerun()
