@@ -1,38 +1,14 @@
-import streamlit as st
 import pandas as pd
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from st_aggrid import AgGrid, GridOptionsBuilder
+
+custom_css = {
+    ".ag-root": {"background-color": "#0e1117"},
+    ".ag-header": {"background-color": "#0e1117"},
+    ".ag-cell": {"background-color": "#0e1117"},
+    ".ag-row": {"background-color": "#0e1117"},
+}
 
 
-def inject_aggrid_styles(func):
-    def wrapper(*args, **kwargs):
-        st.markdown(
-            """
-            <style>
-                <style>
-                /* Override the inherited background at the highest level */
-                .ag-root {
-                    --ag-inherited-background-color: #0e1117 !important; /* Dark theme background */
-                }
-
-                /* Extra: Force all parts of the table to respect the background */
-                .ag-root,
-                .ag-header,
-                .ag-row,
-                .ag-cell {
-                    background-color: var(--ag-inherited-background-color) !important;
-                }
-                </style>
-
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-@inject_aggrid_styles
 def get_delete_ag_grid(raw_data: pd.DataFrame):
     # Build grid options
     raw_data.columns = raw_data.columns.str.upper()
@@ -49,12 +25,12 @@ def get_delete_ag_grid(raw_data: pd.DataFrame):
         height=400,
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
+        custom_css=custom_css,
     )
 
     return grid_response
 
 
-@inject_aggrid_styles
 def get_update_ag_grid(raw_data: pd.DataFrame):
     # Build grid options
     raw_data.columns = raw_data.columns.str.upper()
@@ -71,12 +47,12 @@ def get_update_ag_grid(raw_data: pd.DataFrame):
         height=400,
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
+        custom_css=custom_css,
     )
 
     return grid_response
 
 
-@inject_aggrid_styles
 def get_read_ag_grid(raw_data: pd.DataFrame):
     # Build grid options
     raw_data.columns = raw_data.columns.str.upper()
@@ -92,6 +68,7 @@ def get_read_ag_grid(raw_data: pd.DataFrame):
         height=400,
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
+        custom_css=custom_css,
     )
 
     return grid_response
