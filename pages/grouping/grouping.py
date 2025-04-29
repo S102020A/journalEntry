@@ -88,7 +88,7 @@ with st.container():
             data = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
             raw_data = pd.DataFrame(data, columns=columns)
-            grid_response = get_read_ag_grid(raw_data)
+            grid_response = get_ag_grid_instance(raw_data)
 
             selected = grid_response["selected_rows"]
             if selected is not None:
@@ -118,7 +118,7 @@ with st.container():
             data = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
             raw_data = pd.DataFrame(data, columns=columns)
-            grid_response = get_update_ag_grid(raw_data)
+            grid_response = get_ag_grid_instance(raw_data)
 
             # obtain in a fram the updated dataframe
             updated_data = pd.DataFrame(grid_response["data"]).reset_index(drop=True)
@@ -155,7 +155,7 @@ with st.container():
             raw_data = pd.DataFrame(data, columns=columns)
 
             # instantiate the grid
-            grid_response = get_delete_ag_grid(raw_data)
+            grid_response = get_ag_grid_instance(raw_data)
 
             # Check if a row is selected
             selected = grid_response["selected_rows"]
