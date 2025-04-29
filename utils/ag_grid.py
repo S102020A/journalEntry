@@ -2,11 +2,11 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 custom_css = {
-    ".ag-root": {"background-color": "#0e1117"},
-    ".ag-header": {"background-color": "#0e1117"},
-    ".ag-cell": {"background-color": "#0e1117"},
-    ".ag-row": {"background-color": "#0e1117"},
-    ".ag-paging-panel": {"background-color": "#0e1117"},
+    ".ag-root": {"background-color": "#262C28", "color": "#FDFDFC"},
+    ".ag-header": {"background-color": "#262C28", "color": "#FDFDFC"},
+    ".ag-cell": {"background-color": "#262C28", "color": "#FDFDFC"},
+    ".ag-row": {"background-color": "#262C28", "color": "#FDFDFC"},
+    ".ag-paging-panel": {"background-color": "#262C28", "color": "#FDFDFC"},
 }
 
 

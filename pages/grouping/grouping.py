@@ -9,23 +9,26 @@ from pages.grouping.utils import *
 conn = get_connection()
 cursor = conn.cursor()
 
-# have a template to look and feel the data
-template_data = {
-    "ALL_ACCOUNTS": [{"ASSETS": ["NEW_ACCOUNT"]}, "TOTAL_LIABILITIES", "NET ASSETS"]
-}
+with st.container():
+    # have a template to look and feel the data
+    template_data = {
+        "ALL_ACCOUNTS": [{"ASSETS": ["NEW_ACCOUNT"]}, "TOTAL_LIABILITIES", "NET ASSETS"]
+    }
 
-json_string = json.dumps(template_data, indent=4, sort_keys=False)
+    json_string = json.dumps(template_data, indent=4, sort_keys=False)
 
-st.download_button(
-    label="Download JSON Template",
-    data=json_string,
-    file_name="template.json",
-    mime="json",
-)
+    st.download_button(
+        label="Download JSON Template",
+        data=json_string,
+        file_name="template.json",
+        mime="json",
+    )
 
-st.code(json_string, language="json")
+    st.code(json_string, language="json")
 
-create, read, update, delete = st.tabs(["✍️ Create", "📖 Read", "✏️ Update", "🗑️ Delete"])
+    create, read, update, delete = st.tabs(
+        ["✍️ Create", "📖 Read", "✏️ Update", "🗑️ Delete"]
+    )
 
 with create:
     try:
