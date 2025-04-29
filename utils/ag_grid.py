@@ -58,6 +58,7 @@ def get_read_ag_grid(raw_data: pd.DataFrame):
     gb = GridOptionsBuilder.from_dataframe(raw_data)
     gb.configure_pagination(enabled=True, paginationAutoPageSize=10)
     gb.configure_default_column(editable=False)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
     grid_options = gb.build()
 
     # Display interactive grid

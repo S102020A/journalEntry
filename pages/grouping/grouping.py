@@ -10,6 +10,18 @@ conn = get_connection()
 cursor = conn.cursor()
 
 with st.container():
+    st.markdown("<h1 style=" ">📃 Instructions</h1>", unsafe_allow_html=True)
+    instructions = """
+        There are three types of groupings that can be created: Account, Business Unit, and Report.
+
+        Both Account and Business Unit groupings perform validation to ensure that all of 
+        their respective child components are included. For example, if a grouping is missing a required 
+        component like the CASH account, a warning will be generated.
+
+        Despite these warnings, incomplete groupings may still be saved to the database.
+    """
+    st.write(instructions)
+
     # have a template to look and feel the data
     template_data = {
         "ALL_ACCOUNTS": [{"ASSETS": ["NEW_ACCOUNT"]}, "TOTAL_LIABILITIES", "NET ASSETS"]
@@ -23,118 +35,138 @@ with st.container():
         file_name="template.json",
         mime="json",
     )
-
     st.code(json_string, language="json")
 
+
+with st.container():
+    # create a container for database management console
+    st.markdown("<h1>📎 Data Management Console</h1>", unsafe_allow_html=True)
     create, read, update, delete = st.tabs(
         ["✍️ Create", "📖 Read", "✏️ Update", "🗑️ Delete"]
     )
 
-with create:
-    try:
-        with st.form("New Grouping"):
-            st.write("Insert New Grouping")
+    with create:
+        try:
+            with st.form("New Grouping"):
+                st.write("Insert New Grouping")
 
-            group_name = st.text_input("Name of Grouping")
-            created_by = st.text_input("Created By")
-            dimension = st.selectbox(
-                "Select dimension", options=["account", "business_unit"]
-            )
-            uploaded_json_file = st.file_uploader(label="Json uploader", type="json")
-            submitted = st.form_submit_button("Submit")
-
-            if submitted and validate_form(
-                group_name, created_by, dimension, uploaded_json_file
-            ):
-                parsed_json = json.load(uploaded_json_file)
-                json_str = json.dumps(parsed_json)
-                cursor.execute(
-                    """
-                        INSERT INTO finance.grouping (name, dimension, grouping, created_by) VALUES (%s, %s, %s, %s)
-                    """,
-                    (group_name, dimension, json_str, created_by),
+                group_name = st.text_input("Name of Grouping")
+                created_by = st.text_input("Created By")
+                dimension = st.selectbox(
+                    "Select dimension", options=["account", "business_unit"]
                 )
-                conn.commit()
+                uploaded_json_file = st.file_uploader(
+                    label="Json uploader", type="json"
+                )
+                submitted = st.form_submit_button("Submit")
 
-                st.success("Grouping successfully inserted into the database!")
-    except Exception as error:
-        st.error(error)
+                if submitted and validate_form(
+                    group_name, created_by, dimension, uploaded_json_file
+                ):
+                    parsed_json = json.load(uploaded_json_file)
+                    json_str = json.dumps(parsed_json)
+                    cursor.execute(
+                        """
+                            INSERT INTO finance.grouping (name, dimension, grouping, created_by) VALUES (%s, %s, %s, %s)
+                        """,
+                        (group_name, dimension, json_str, created_by),
+                    )
+                    conn.commit()
 
-with read:
-    try:
-        query = """
+                    st.success("Grouping successfully inserted into the database!")
+        except Exception as error:
+            st.error(error)
+
+    with read:
+        try:
+            query = """
+                    SELECT id, name, grouping::TEXT, dimension, created_by
+                    FROM finance.grouping
+                    ORDER BY created_at DESC;
+                """
+            cursor.execute(query)
+            data = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            raw_data = pd.DataFrame(data, columns=columns)
+            grid_response = get_read_ag_grid(raw_data)
+
+            selected = grid_response["selected_rows"]
+            if selected is not None:
+
+                read_json = json.loads(selected["grouping"].iloc[0])
+                read_json_str = json.dumps(read_json, indent=4, sort_keys=False)
+
+                st.download_button(
+                    label=f"Download `{selected['name'].iloc[0]}` JSON Template",
+                    data=read_json_str,
+                    file_name="template.json",
+                    mime="json",
+                    key="readDownloadBtn",
+                )
+
+        except Exception as error:
+            st.error(error)
+
+    with update:
+        try:
+            query = """
+                    SELECT id, name, dimension, created_by
+                    FROM finance.grouping
+                    ORDER BY created_at DESC;
+                """
+            cursor.execute(query)
+            data = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            raw_data = pd.DataFrame(data, columns=columns)
+            grid_response = get_update_ag_grid(raw_data)
+
+            # obtain in a fram the updated dataframe
+            updated_data = pd.DataFrame(grid_response["data"]).reset_index(drop=True)
+            original_data = raw_data.reset_index(drop=True)
+
+            if not updated_data.equals(original_data):
+                changes = updated_data.compare(
+                    original_data, keep_shape=True, keep_equal=True
+                )
+                modified_indices = changes.dropna(how="all").index.tolist()
+
+                if modified_indices:
+                    st.success(f"Updating {len(modified_indices)} modified row(s)...")
+
+                    for i in modified_indices:
+                        update_row_in_database(updated_data.loc[i].to_dict())
+
+                    st.info("Data updated in DB. Refreshing...")
+                    st.rerun()
+        except Exception as error:
+            st.error(error)
+
+    with delete:
+        try:
+            # Fetch data
+            query = """
                 SELECT id, name, grouping::TEXT, dimension, created_by
                 FROM finance.grouping
                 ORDER BY created_at DESC;
             """
-        cursor.execute(query)
-        data = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description]
-        raw_data = pd.DataFrame(data, columns=columns)
-        grid_response = get_read_ag_grid(raw_data)
-    except Exception as error:
-        st.error(error)
+            cursor.execute(query)
+            data = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            raw_data = pd.DataFrame(data, columns=columns)
 
-with update:
-    try:
-        query = """
-                SELECT id, name, dimension, created_by
-                FROM finance.grouping
-                ORDER BY created_at DESC;
-            """
-        cursor.execute(query)
-        data = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description]
-        raw_data = pd.DataFrame(data, columns=columns)
-        grid_response = get_update_ag_grid(raw_data)
+            # instantiate the grid
+            grid_response = get_delete_ag_grid(raw_data)
 
-        # obtain in a fram the updated dataframe
-        updated_data = pd.DataFrame(grid_response["data"]).reset_index(drop=True)
-        original_data = raw_data.reset_index(drop=True)
-
-        if not updated_data.equals(original_data):
-            changes = updated_data.compare(
-                original_data, keep_shape=True, keep_equal=True
-            )
-            modified_indices = changes.dropna(how="all").index.tolist()
-
-            if modified_indices:
-                st.success(f"Updating {len(modified_indices)} modified row(s)...")
-
-                for i in modified_indices:
-                    update_row_in_database(updated_data.loc[i].to_dict())
-
-                st.info("Data updated in DB. Refreshing...")
-                st.rerun()
-    except Exception as error:
-        st.error(error)
-
-with delete:
-    try:
-        # Fetch data
-        query = """
-            SELECT id, name, grouping::TEXT, dimension, created_by
-            FROM finance.grouping
-            ORDER BY created_at DESC;
-        """
-        cursor.execute(query)
-        data = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description]
-        raw_data = pd.DataFrame(data, columns=columns)
-
-        # instantiate the grid
-        grid_response = get_delete_ag_grid(raw_data)
-
-        # Check if a row is selected
-        selected = grid_response["selected_rows"]
-        if selected is not None:
-            selected_id = int(selected.iloc[0]["id"])
-            if st.button(f"Delete Selected ID {selected_id}"):
-                cursor.execute(
-                    "DELETE FROM finance.grouping WHERE id = %s;", (selected_id,)
-                )
-                conn.commit()
-                st.success(f"Deleted row with ID {selected_id}")
-                st.rerun()
-    except Exception as error:
-        st.error(error)
+            # Check if a row is selected
+            selected = grid_response["selected_rows"]
+            if selected is not None:
+                selected_id = int(selected.iloc[0]["id"])
+                if st.button(f"Delete Selected ID {selected_id}"):
+                    cursor.execute(
+                        "DELETE FROM finance.grouping WHERE id = %s;", (selected_id,)
+                    )
+                    conn.commit()
+                    st.success(f"Deleted row with ID {selected_id}")
+                    st.rerun()
+        except Exception as error:
+            st.error(error)
