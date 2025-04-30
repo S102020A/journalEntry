@@ -43,19 +43,3 @@ def validate_form(group_name, created_by, dimension, uploaded_json_file):
         return False
 
     return True
-
-
-def update_row_in_database(row: dict):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    update_query = """
-        UPDATE finance.grouping
-        SET name = %s, dimension = %s, created_by = %s
-        WHERE id = %s;
-    """
-    cursor.execute(
-        update_query,
-        (row["name"], row["dimension"], row["created_by"], row["id"]),
-    )
-    conn.commit()

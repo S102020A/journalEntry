@@ -1,5 +1,3 @@
-from datetime import date
-
 MANUAL_BUDGET_COLS: dict[str, str] = {
     "budget_id": "str",
     "chart_id": "str",
