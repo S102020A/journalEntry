@@ -1,6 +1,9 @@
 # secrets
 secrets.toml
 
+# jons needs
+*.zip
+
 # test data
 test_data/
 
