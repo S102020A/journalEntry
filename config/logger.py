@@ -2,9 +2,7 @@
 import logging
 
 
-def get_logger(
-    name: str = "streamlit_app", log_file: str = "app.log"
-) -> logging.Logger:
+def get_logger(name: str = "app", log_file: str = "app.log") -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
 

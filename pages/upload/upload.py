@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 from pages.upload.utils import *
+from app import logger
 
 
 def hard_del_session():
@@ -107,6 +108,7 @@ if st.session_state.get("is_clean", False):
                     except Exception as e:
                         st.subheader("Data Ingestion Error")
                         st.error(f"{e}")
+                        logger.error(e)
 
                 if st.button("❌ Cancel", use_container_width=True):
                     st.session_state["show_ingestion_confirm"] = False
@@ -114,7 +116,9 @@ if st.session_state.get("is_clean", False):
         except Exception as e:
             st.subheader("Data Cleaning Error")
             st.error(f"{e}")
+            logger.error(e)
 
     except Exception as e:
         st.subheader("File Read Error")
         st.error(f"{e}")
+        logger.error(e)

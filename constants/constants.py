@@ -1,41 +1,45 @@
-MANUAL_BUDGET_COLS: dict[str, str] = {
-    "budget_id": "str",
-    "chart_id": "str",
-    "chart": "str",
-    "account_no": "str",
-    "account": "str",
-    "business_unit_id": "str",
-    "business_unit": "str",
-    "amount": "float",
-    "accounting_date": "date",
-    "data_type": "str",
-}
+from pydantic import BaseModel
+from datetime import date
+from typing import Optional
 
-MANUAL_JOURNAL_ENTRY_TRANSACTION_COLS: dict[str, str] = {
-    "company_id": "str",
-    "entry_id": "str",
-    "business_unit_id": "str",
-    "account_no": "str",
-    "amount": "float",
-    "accounting_date": "date",
-    "data_type": "str",
-    "remarks": "str",
-    "comments": "str",
-    "follow_up_status": "str",
-    "entry_type": "str",
-    "source_system": "str",
-    "reversed": "str",
-    "approval": "str",
-    "reversing_date": "date",
-    "date_created": "date",
-    "user_created": "str",
-    "date_closed": "date",
-    "user_closed": "str",
-    "date_posted": "date",
-    "user_posted": "str",
-    "company": "str",
-    "business_unit": "str",
-    "account": "str",
-    "account_type": "str",
-    "period_id": "str",
-}
+
+class ManualBudget(BaseModel):
+    budget_id: str
+    chart_id: str
+    chart: str
+    account_no: str
+    account: str
+    business_unit_id: str
+    business_unit: str
+    amount: float
+    accounting_date: date
+    data_type: str
+
+
+class ManualJournalEntryTransaction(BaseModel):
+    company_id: str
+    entry_id: str
+    business_unit_id: str
+    account_no: str
+    amount: float
+    accounting_date: date
+    data_type: str
+    remarks: str
+    comments: str
+    follow_up_status: str
+    entry_type: str
+    source_system: str
+    reversed: str
+    approval: str
+    reversing_date: date
+    date_created: date
+    user_created: str
+    date_closed: date
+    user_closed: str
+    date_posted: date
+    user_posted: str
+    company: str
+    business_unit: str
+    account: str
+    account_type: str
+    period_id: str

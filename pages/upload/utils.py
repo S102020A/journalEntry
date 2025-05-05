@@ -1,17 +1,19 @@
+from pydantic import BaseModel
 from utils.db_manager import get_connection
 import json
 import psycopg2
 import pandas as pd
 import streamlit as st
+from datetime import date
 from constants.constants import (
-    MANUAL_JOURNAL_ENTRY_TRANSACTION_COLS,
-    MANUAL_BUDGET_COLS,
+    ManualJournalEntryTransaction,
+    ManualBudget,
 )
 
 
-def convert_date_cols(schema: dict, df: pd.DataFrame) -> pd.DataFrame:
-    for col, data_type in schema.items():
-        if data_type == "date":
+def convert_date_cols(model: BaseModel, df: pd.DataFrame) -> pd.DataFrame:
+    for col, data_type in model.__annotations__.items():
+        if data_type is date:
             try:
                 df[col] = pd.to_datetime(df[col], format="%m/%d/%Y").dt.date
             except Exception as e:
@@ -39,9 +41,9 @@ def clean_data(raw: pd.DataFrame):
 
     # check if all columns are provided
     if table_name == "MANUAL_JOURNAL_ENTRY_TRANSACTION":
-        schema = MANUAL_JOURNAL_ENTRY_TRANSACTION_COLS
+        schema = ManualJournalEntryTransaction
     elif table_name == "MANUAL_BUDGET":
-        schema = MANUAL_BUDGET_COLS
+        schema = ManualBudget
     else:
         st.error(f"Unknown table name: {table_name}.  Cannot validate columns.")
         st.stop()
