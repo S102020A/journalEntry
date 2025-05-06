@@ -1,16 +1,16 @@
-# logger_config.py
+# logger.py
 import logging
 
 
-def get_logger(name: str = "app", log_file: str = "app.log") -> logging.Logger:
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-
-    # Prevent adding multiple handlers if logger is imported more than once
-    if not logger.handlers:
-        handler = logging.FileHandler(log_file, mode="a")
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
+def setup_logger():
+    logger = logging.getLogger("my_logger")
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
     return logger
+
+
+logger = setup_logger()

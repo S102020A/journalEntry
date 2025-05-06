@@ -4,6 +4,7 @@ import json
 from utils.ag_grid import *
 from utils.db_manager import get_connection
 from pages.grouping.utils import *
+from config.logger import logger
 
 # instructions container
 with st.container():
@@ -83,6 +84,7 @@ with st.container():
                     dimension = st.selectbox(
                         "Select dimension",
                         options=["account", "business_unit", "report"],
+                        key="create_dimension_selectbox",
                     )
                     uploaded_json_file = st.file_uploader(
                         label="Json uploader", type="json"
@@ -124,7 +126,10 @@ with st.container():
                         else 0
                     )
                     dimension = st.selectbox(
-                        "Select dimension", options=options, index=default_index
+                        "Select dimension",
+                        options=options,
+                        index=default_index,
+                        key="update_dimension_selectbox",
                     )
                     uploaded_json_file = st.file_uploader(
                         label=f"Json uploader for {row['name']}", type="json"
@@ -173,3 +178,4 @@ with st.container():
 
     except Exception as error:
         st.error(error)
+        logger.error(error)

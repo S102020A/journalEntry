@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from pages.upload.utils import *
-from app import logger
+from config.logger import logger
 
 
 def hard_del_session():
@@ -14,7 +14,7 @@ st.title("Upload")
 option = st.selectbox(
     label="Select an upload option",
     options=["MANUAL_JOURNAL_ENTRY_TRANSACTION", "MANUAL_BUDGET"],
-    key="option_selectbox",
+    key=f"file_upload_selectbox_{st.session_state.get('table_name', 'default')}",
     index=1,
     on_change=hard_del_session,
 )
@@ -24,7 +24,7 @@ uploaded_file = st.file_uploader(
     label=f"Upload a csv",
     type="csv",
     accept_multiple_files=False,
-    key="file_uploader",
+    key=f"file_uploader_{st.session_state.get('table_name', 'default')}",
 )
 
 if uploaded_file is not None:
@@ -48,6 +48,7 @@ if uploaded_file is not None:
                     st.rerun()
 
 if st.session_state.get("is_clean", False):
+    # Try reading file
     try:
         raw = pd.read_csv(uploaded_file, dtype=str, delimiter=",")
 
@@ -90,7 +91,9 @@ if st.session_state.get("is_clean", False):
                     st.info("🏃 Data ingestion started!")
 
                     try:
-                        message = drop_data_from_minimum_date_created(clean_data_df)
+                        message = drop_conditional_rows_from_accounting_date(
+                            clean_data_df
+                        )
                         st.success(message)
 
                         message = insert_data(clean_data_df.to_dict(orient="records"))

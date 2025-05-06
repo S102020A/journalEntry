@@ -1,12 +1,12 @@
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 
-CSS = {
-    ".ag-root": {"background-color": "#262C28", "color": "#FDFDFC"},
-    ".ag-header": {"background-color": "#262C28", "color": "#FDFDFC"},
-    ".ag-cell": {"background-color": "#262C28", "color": "#FDFDFC"},
-    ".ag-row": {"background-color": "#262C28", "color": "#FDFDFC"},
-    ".ag-paging-panel": {"background-color": "#262C28", "color": "#FDFDFC"},
+AGGRID_CSS = {
+    ".ag-root": {"background-color": "#030326", "color": "#FDFDFC"},
+    ".ag-header": {"background-color": "#030326", "color": "#FDFDFC"},
+    ".ag-cell": {"background-color": "#030326", "color": "#FDFDFC"},
+    ".ag-row": {"background-color": "#030326", "color": "#FDFDFC"},
+    ".ag-paging-panel": {"background-color": "#030326", "color": "#FDFDFC"},
 }
 
 
@@ -25,7 +25,7 @@ def get_ag_grid_instance(raw_data: pd.DataFrame) -> AgGrid:
         height=400,
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
-        custom_css=CSS,
+        custom_css=AGGRID_CSS,
     )
 
     return grid_response

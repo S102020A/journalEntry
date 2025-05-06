@@ -12,19 +12,24 @@ from constants.constants import (
 
 
 def convert_date_cols(model: BaseModel, df: pd.DataFrame) -> pd.DataFrame:
-    for col, data_type in model.__annotations__.items():
-        if data_type is date:
+    for field_name, field in model.__pydantic_fields__.items():
+
+        field_type = field.annotation
+
+        if field_type is date:
             try:
-                df[col] = pd.to_datetime(df[col], format="%m/%d/%Y").dt.date
+                df[field_name] = pd.to_datetime(
+                    df[field_name], format="%m/%d/%Y"
+                ).dt.date
             except Exception as e:
-                print(f"Error converting column '{col}' to datetime: {e}")
+                print(f"Error converting column '{field_name}' to datetime: {e}")
                 raise Exception()
     return df
 
 
-def validate_column_names(column_names: list[str], schema: dict) -> dict:
-    schema_column_names = list(schema.keys())
-    missing_from_df = [col for col in schema_column_names if col not in column_names]
+def validate_column_names(column_names: list[str], model: BaseModel) -> dict:
+    columns = list(model.__pydantic_fields__.keys())
+    missing_from_df = [col for col in columns if col not in column_names]
 
     if missing_from_df:
         error_message = (
@@ -41,9 +46,9 @@ def clean_data(raw: pd.DataFrame):
 
     # check if all columns are provided
     if table_name == "MANUAL_JOURNAL_ENTRY_TRANSACTION":
-        schema = ManualJournalEntryTransaction
+        model = ManualJournalEntryTransaction
     elif table_name == "MANUAL_BUDGET":
-        schema = ManualBudget
+        model = ManualBudget
     else:
         st.error(f"Unknown table name: {table_name}.  Cannot validate columns.")
         st.stop()
@@ -58,10 +63,10 @@ def clean_data(raw: pd.DataFrame):
     )
 
     # validate columns
-    validate_column_names(column_names=df.columns.to_list(), schema=schema)
+    validate_column_names(column_names=df.columns.to_list(), model=model)
 
     # convert date columns to pd.date
-    df = convert_date_cols(df=df, schema=schema)
+    df = convert_date_cols(df=df, model=model)
 
     # convert nans to none
     df = df.map(lambda value: None if pd.isna(value) else value)
@@ -116,19 +121,20 @@ def clean_data(raw: pd.DataFrame):
     return clean
 
 
-def drop_data_from_minimum_date_created(df: pd.DataFrame) -> str:
-    clean_data_copy = df.copy()
-    min_date = clean_data_copy["accounting_date"].min()
+def drop_conditional_rows_from_accounting_date(clean_data_df: pd.DataFrame) -> str:
     conn = get_connection()
     cursor = conn.cursor()
 
+    # create two seperate sql drop statements for each table
+    minimum_accounting_date = clean_data_df["accounting_date"].min()
+    sql = f"delete from finance.{st.session_state["table_name"]} where accounting_date >= %s"
+
     try:
-        sql = f'delete from finance.{st.session_state["table_name"]} where accounting_date >= %s'
-        cursor.execute(sql, (min_date,))
+        cursor.execute(sql, (minimum_accounting_date,))
         rows_dropped = cursor.rowcount
         conn.commit()
 
-        return_message = f"💧 {rows_dropped} rows dropped from column accounting_date on or after {min_date}."
+        return_message = f"💧 {rows_dropped} rows dropped."
         return return_message
     except psycopg2.Error as e:
         conn.rollback()
